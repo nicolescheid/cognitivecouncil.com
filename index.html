@@ -300,6 +300,7 @@ Now expand this into a fuller exploration. 2-3 paragraphs. Go deeper into your r
             const [enrichedPromptCache, setEnrichedPromptCache] = useState('');
             const [toast, setToast] = useState(null);
             const [resumeAvailable, setResumeAvailable] = useState(null);
+            const [prefrontalHasLanded, setPrefrontalHasLanded] = useState(false);
             const hasRestoredRef = useRef(false);
 
             const STORAGE_KEY = 'cognitive_council_session_v1';
@@ -504,6 +505,7 @@ Respond with ONLY a JSON array:
 
                 // Initialize all 5 cards in loading state immediately so the user sees them
                 setResponses(neuralSystems.map(s => ({ ...s, response: '', loading: true, error: null })));
+                setPrefrontalHasLanded(false);
 
                 // Kick off all 5 in parallel — each card fills in independently as it arrives
                 neuralSystems.forEach(system => fetchSystemResponse(system, enrichedPrompt));
@@ -522,6 +524,15 @@ Respond with ONLY a JSON array:
             const allComplete = responses.length > 0 && responses.every(r => !r.loading);
             const anyErrored = responses.some(r => r.error);
             const successfulResponses = responses.filter(r => !r.loading && !r.error && r.response);
+
+            // Prefrontal anchors the reading order — non-Prefrontal cards stay as skeletons until it lands.
+            // Sticky: once Prefrontal lands, stay released even if user retries it (avoids re-hiding other cards).
+            useEffect(() => {
+                if (prefrontalHasLanded) return;
+                if (responses.some(r => r.id === 'prefrontal' && !r.loading)) {
+                    setPrefrontalHasLanded(true);
+                }
+            }, [responses, prefrontalHasLanded]);
 
             // ─── Expand a system's response ───
             const handleExpand = async (systemId) => {
@@ -831,6 +842,7 @@ Return ONLY the question text. Start with "Why do I..." Be specific to their sit
                 setSelectedSystems({});
                 setEnrichedPromptCache('');
                 setContextualAnswers([]);
+                setPrefrontalHasLanded(false);
                 try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
             };
 
@@ -875,6 +887,7 @@ Return ONLY the question text. Start with "Why do I..." Be specific to their sit
                 const completed = (s.responses || []).filter(r => !r.loading && !r.error && r.response);
                 if (s.stage === 'forum' && completed.length === neuralSystems.length) {
                     setResponses(completed);
+                    setPrefrontalHasLanded(true); // restored session is fully loaded — release the gate immediately
                     setStage('forum');
                 } else {
                     // Mid-flight forum sessions return to questions stage so they can re-convene
@@ -1260,28 +1273,37 @@ Return ONLY the question text. Start with "Why do I..." Be specific to their sit
                                                 {/* Gradient line */}
                                                 <div className={`h-0.5 bg-gradient-to-r ${system.color} rounded-full mb-4 opacity-40`} />
                                                 
-                                                {/* Compact response — loading skeleton, error state, or content */}
-                                                {system.loading ? (
-                                                    <div className="space-y-2 py-1">
-                                                        <div className="h-3 bg-white/5 rounded w-full animate-pulse" />
-                                                        <div className="h-3 bg-white/5 rounded w-11/12 animate-pulse" style={{animationDelay:'120ms'}} />
-                                                        <div className="h-3 bg-white/5 rounded w-4/5 animate-pulse" style={{animationDelay:'240ms'}} />
-                                                        <p className="text-slate-500 text-xs italic mt-3">Thinking…</p>
-                                                    </div>
-                                                ) : system.error ? (
-                                                    <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-3 text-sm">
-                                                        <p className="text-rose-200 mb-2">This perspective didn't come through. {system.error}</p>
-                                                        <button
-                                                            onClick={() => retrySystem(system.id)}
-                                                            className="px-3 py-1.5 text-xs rounded-lg bg-rose-500/20 text-rose-100 hover:bg-rose-500/30 transition-colors border border-rose-500/30"
-                                                        >Retry</button>
-                                                    </div>
-                                                ) : (
-                                                    <div
-                                                        className="system-output text-slate-200 leading-relaxed text-[15px]"
-                                                        dangerouslySetInnerHTML={{ __html: renderMarkdown(system.response) }}
-                                                    />
-                                                )}
+                                                {/* Compact response — Prefrontal goes first so it anchors the reading order; non-Prefrontal cards stay as skeletons until Prefrontal lands */}
+                                                {(() => {
+                                                    const holdForPrefrontal = system.id !== 'prefrontal' && !prefrontalHasLanded;
+                                                    if (system.loading || holdForPrefrontal) {
+                                                        return (
+                                                            <div className="space-y-2 py-1">
+                                                                <div className="h-3 bg-white/5 rounded w-full animate-pulse" />
+                                                                <div className="h-3 bg-white/5 rounded w-11/12 animate-pulse" style={{animationDelay:'120ms'}} />
+                                                                <div className="h-3 bg-white/5 rounded w-4/5 animate-pulse" style={{animationDelay:'240ms'}} />
+                                                                <p className="text-slate-500 text-xs italic mt-3">Thinking…</p>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    if (system.error) {
+                                                        return (
+                                                            <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-3 text-sm">
+                                                                <p className="text-rose-200 mb-2">This perspective didn't come through. {system.error}</p>
+                                                                <button
+                                                                    onClick={() => retrySystem(system.id)}
+                                                                    className="px-3 py-1.5 text-xs rounded-lg bg-rose-500/20 text-rose-100 hover:bg-rose-500/30 transition-colors border border-rose-500/30"
+                                                                >Retry</button>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <div
+                                                            className="system-output text-slate-200 leading-relaxed text-[15px]"
+                                                            dangerouslySetInnerHTML={{ __html: renderMarkdown(system.response) }}
+                                                        />
+                                                    );
+                                                })()}
 
                                                 {/* Expanded content */}
                                                 <div className={`expand-content ${expandedSystems[system.id] ? 'open' : ''}`}>
@@ -1327,8 +1349,8 @@ Return ONLY the question text. Start with "Why do I..." Be specific to their sit
                                                     </div>
                                                 ))}
 
-                                                {/* Action row: Expand / Refine / Reactions — only when card is loaded successfully */}
-                                                {!system.loading && !system.error && (
+                                                {/* Action row: Expand / Refine / Reactions — only when card is loaded successfully AND Prefrontal has anchored */}
+                                                {!system.loading && !system.error && (system.id === 'prefrontal' || prefrontalHasLanded) && (
                                                     <div className="mt-4 pt-4 border-t border-white/10">
                                                         {/* Expand & Refine buttons */}
                                                         <div className="flex gap-2 mb-3">
