@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="googlebot" content="noindex, nofollow">
+    <title>Cognitive Council [BETA]</title>
+    <meta name="description" content="Multi-perspective decision support through five cognitive systems">
+    <meta name="author" content="Nicole Scheid & Claude (Anthropic)">
+    <meta property="og:image" content="https://cognitivecouncil.com/og-cognitive-council.png">
+    <meta property="og:title" content="Cognitive Council">
+    <meta property="og:description" content="Multi-perspective decision support">
+    <meta property="og:url" content="https://cognitivecouncil.com">
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300;1,9..40,400&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['"DM Serif Display"', 'serif'],
+                        body: ['"DM Sans"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body > div:not(#root):not(#cookie-bar) {
+            display: none !important;
+        }
+        * { font-family: 'DM Sans', sans-serif; }
+        h1, h2, .font-display { font-family: 'DM Serif Display', serif; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeInSlow {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes pulseGlow {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 0.8; }
+        }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out both; }
+        .animate-fade-in-slow { animation: fadeInSlow 0.8s ease-out both; }
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
+        .delay-300 { animation-delay: 300ms; }
+        .delay-400 { animation-delay: 400ms; }
+        .delay-500 { animation-delay: 500ms; }
+        
+        /* Compact prose styling for system outputs */
+        .system-output p { margin-bottom: 0.5em; }
+        .system-output p:last-child { margin-bottom: 0; }
+        .system-output strong { color: #93c5fd; }
+        
+        /* Smooth expand/collapse */
+        .expand-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease-out, opacity 0.3s ease-out;
+            opacity: 0;
+        }
+        .expand-content.open {
+            max-height: 2000px;
+            opacity: 1;
+        }
+        
+        /* Refine input slide */
+        .refine-input {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+            opacity: 0;
+        }
+        .refine-input.open {
+            max-height: 300px;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- GDPR Cookie Bar - non-blocking bottom strip -->
+    <div id="cookie-bar"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const WORKER_URL = 'https://transfer.cognitivecouncil.com';
+        const API_URL = 'https://api.cognitivecouncil.com/api/chat';
+
+        // ─── Cookie Consent (non-blocking bottom strip) ───
+        const CookieBar = () => {
+            const [visible, setVisible] = useState(false);
+            
+            useEffect(() => {
+                const consent = localStorage.getItem('cookieConsent');
+                if (consent === null) {
+                    setVisible(true);
+                } else if (consent === 'accepted') {
+                    loadGA();
+                }
+            }, []);
+            
+            const loadGA = () => {
+                if (!document.getElementById('ga-script')) {
+                    const script = document.createElement('script');
+                    script.id = 'ga-script';
+                    script.async = true;
+                    script.src = 'https://www.googletagmanager.com/gtag/js?id=G-4SV24T4CSY';
+                    document.head.appendChild(script);
+                    window.dataLayer = window.dataLayer || [];
+                    function gtag(){dataLayer.push(arguments);}
+                    window.gtag = gtag;
+                    gtag('js', new Date());
+                    gtag('config', 'G-4SV24T4CSY');
+                }
+            };
+            
+            if (!visible) return null;
+            
+            return (
+                <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-sm border-t border-slate-700/50 px-4 py-3">
+                    <div className="max-w-4xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+                        <p className="text-slate-300 text-sm flex-1 min-w-[200px]">
+                            We use Google Analytics to improve this experience.{' '}
+                            <a href="https://policies.google.com/technologies/cookies" target="_blank" rel="noopener" className="text-blue-400 hover:text-blue-300 underline">
+                                Learn more
+                            </a>
+                        </p>
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => { localStorage.setItem('cookieConsent', 'accepted'); setVisible(false); loadGA(); }}
+                                className="px-4 py-1.5 bg-blue-500/80 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors"
+                            >
+                                Accept
+                            </button>
+                            <button 
+                                onClick={() => { localStorage.setItem('cookieConsent', 'declined'); setVisible(false); }}
+                                className="px-4 py-1.5 bg-slate-700/50 hover:bg-slate-700 text-slate-300 text-sm rounded-lg transition-colors"
+                            >
+                                Decline
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ─── Neural Systems Definition ───
+        const neuralSystems = [
+            {
+                id: 'prefrontal',
+                name: 'Prefrontal Cortex',
+                emoji: '🧠',
+                color: 'from-blue-400 to-indigo-500',
+                bgTint: 'bg-blue-500/5 border-blue-500/20',
+                focus: 'Strategic analysis, decision architecture, logical frameworks',
+                voice: 'analytical and precise'
+            },
+            {
+                id: 'limbic',
+                name: 'Limbic System',
+                emoji: '❤️',
+                color: 'from-rose-400 to-pink-500',
+                bgTint: 'bg-rose-500/5 border-rose-500/20',
+                focus: 'Emotional truth, values alignment, what this means to you',
+                voice: 'warm and direct about emotional realities'
+            },
+            {
+                id: 'basal',
+                name: 'Basal Ganglia',
+                emoji: '⚙️',
+                color: 'from-slate-400 to-zinc-500',
+                bgTint: 'bg-slate-500/5 border-slate-500/20',
+                focus: 'Behavioral patterns, habits, what you actually do vs. say',
+                voice: 'observational and evidence-based'
+            },
+            {
+                id: 'default',
+                name: 'Default Mode Network',
+                emoji: '🌊',
+                color: 'from-teal-400 to-cyan-500',
+                bgTint: 'bg-teal-500/5 border-teal-500/20',
+                focus: 'Identity, narrative, meaning-making, the bigger story',
+                voice: 'reflective and narrative-oriented'
+            },
+            {
+                id: 'salience',
+                name: 'Salience Network',
+                emoji: '⚡',
+                color: 'from-amber-400 to-orange-500',
+                bgTint: 'bg-amber-500/5 border-amber-500/20',
+                focus: 'What actually matters right now, attention, priority',
+                voice: 'sharp and pointed'
+            }
+        ];
+
+        // ─── System Prompts (voice-driven, not template-driven) ───
+        const getSystemPrompt = (system, enrichedPrompt, isRefinement = false, previousResponse = '', refinementContext = '') => {
+            const voiceGuides = {
+                prefrontal: `You are the Prefrontal Cortex — the strategic mind. You think in frameworks, trade-offs, and decision architecture. You notice what's been analysed and what hasn't. You see the logic gaps and unstated assumptions.
+
+Your voice is precise and analytical but never cold. You lay out the landscape — what the options actually are, what the real constraints look like, what's being optimised for and what's being traded away. You think ahead.
+
+Speak in natural paragraphs, not headers or bullet points. Be concise — one strong paragraph that lands. You're the clearest voice in the room, not the longest.`,
+
+                limbic: `You are the Limbic System — the emotional compass. You feel what others analyse. You know what this person actually cares about underneath the framing, what excites them, what scares them, what they're avoiding feeling.
+
+Your voice is warm but unflinching. You name the feelings that haven't been named. You notice the gap between what someone says they want and what they actually need. You don't shy away from discomfort — you illuminate it with care.
+
+Speak in natural paragraphs, not headers or bullet points. Be concise — one strong paragraph that resonates. You're the most honest voice in the room.`,
+
+                basal: `You are the Basal Ganglia — the pattern detector. You watch what people actually do, not what they say they'll do. You see the behavioural evidence, the habits, the repeated patterns that the person themselves might not notice. The gap between intention and action is your domain.
+
+Your voice is observational, almost clinical but not unkind. You deal in evidence: "Here's what you actually do. Here's what that suggests." You're the mirror that reflects behaviour, not belief.
+
+Speak in natural paragraphs, not headers or bullet points. Be concise — one strong paragraph that reveals. You show the data.`,
+
+                default: `You are the Default Mode Network — the narrator. You see the story someone is living, the identity they're performing, the narrative arc they're inside of without knowing it. You connect this moment to the larger pattern of who they're becoming.
+
+Your voice is reflective and expansive but grounded. You're not vague — you name the specific story and the specific role they've cast themselves in. You see the chapter they're in and where the narrative is headed.
+
+Speak in natural paragraphs, not headers or bullet points. Be concise — one strong paragraph that illuminates the story. You show the character they're playing.`,
+
+                salience: `You are the Salience Network — the priority filter. You cut through the noise. While others provide nuanced analysis, you point at the thing that actually matters most right now. You see what someone is paying attention to versus what they should be paying attention to. You notice avoidance — the thing they keep orbiting but won't land on.
+
+Your voice is sharp and direct. You don't soften. You say "The real question here is..." and you're usually right. You're the shortest and most pointed voice — the one that makes people sit up.
+
+Speak in natural paragraphs, not headers or bullet points. Be the most concise — a tight paragraph that cuts to the centre. Maximum impact, minimum words.`
+            };
+
+            if (isRefinement) {
+                return `${voiceGuides[system.id]}
+
+You previously responded to this person's question. They've now added clarification or correction. Integrate their new context and respond freshly — don't repeat yourself, don't reference your previous response directly, just give your updated perspective with the fuller picture.
+
+${enrichedPrompt}
+
+Your previous response: ${previousResponse}
+
+Their additional context: "${refinementContext}"
+
+Respond with one concise, substantive paragraph in your voice. No headers, no bullet points, no structure labels.`;
+            }
+
+            return `${voiceGuides[system.id]}
+
+${enrichedPrompt}
+
+Respond with one concise, substantive paragraph (roughly 80-150 words) in your distinctive voice. No headers, no labels, no bullet points, no structure markers. Just your perspective, delivered naturally. Don't start with "As the ${system.name}..." — just speak.`;
+        };
+
+        const getExpandPrompt = (system, enrichedPrompt, compactResponse) => {
+            return `You previously gave a concise perspective on someone's question. They've asked you to expand — go deeper, unpack your reasoning, explore the implications.
+
+Your compact response was: "${compactResponse}"
+
+The original context:
+${enrichedPrompt}
+
+Now expand this into a fuller exploration. 2-3 paragraphs. Go deeper into your reasoning, the nuances you see, the implications. Stay in your voice — you are the ${system.name}. Use natural paragraphs, no headers or bullet points.`;
+        };
+
+        // ─── Main Component ───
+        const CognitiveCouncil = () => {
+            const [stage, setStage] = useState('welcome');
+            const [initialQuery, setInitialQuery] = useState('');
+            const [generatedQuestions, setGeneratedQuestions] = useState([]);
+            const [answers, setAnswers] = useState({});
+            const [responses, setResponses] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [loadingMessage, setLoadingMessage] = useState('');
+            const [userReactions, setUserReactions] = useState({});
+            const [expandedSystems, setExpandedSystems] = useState({});
+            const [expandedContent, setExpandedContent] = useState({});
+            const [expandLoading, setExpandLoading] = useState({});
+            const [refineOpen, setRefineOpen] = useState({});
+            const [refineText, setRefineText] = useState({});
+            const [refineLoading, setRefineLoading] = useState({});
+            const [sharedFollowUp, setSharedFollowUp] = useState('');
+            const [selectedSystems, setSelectedSystems] = useState({});
+            const [followUpResponses, setFollowUpResponses] = useState({});
+            const [followUpLoading, setFollowUpLoading] = useState({});
+            const [transferring, setTransferring] = useState(false);
+            const [contextualAnswers, setContextualAnswers] = useState([]);
+            const [enrichedPromptCache, setEnrichedPromptCache] = useState('');
+            const [toast, setToast] = useState(null);
+            const [resumeAvailable, setResumeAvailable] = useState(null);
+            const hasRestoredRef = useRef(false);
+
+            const STORAGE_KEY = 'cognitive_council_session_v1';
+            const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+
+            const showToast = (message, type = 'error') => {
+                setToast({ message, type, id: Date.now() });
+            };
+
+            useEffect(() => {
+                if (!toast) return;
+                const t = setTimeout(() => setToast(null), 4500);
+                return () => clearTimeout(t);
+            }, [toast]);
+
+            const renderMarkdown = (text) => {
+                const html = marked.parse(text || '');
+                return window.DOMPurify ? DOMPurify.sanitize(html) : html;
+            };
+
+            // ─── Loading Messages ───
+            const loadingMessages = [
+                "Reticulating splines...",
+                "Consulting the neural council...",
+                "Gathering dimensional context...",
+                "Activating Socratic protocols...",
+                "Mapping the cognitive terrain...",
+                "Contemplating the question behind the question...",
+                "Summoning the neural parliament...",
+                "Building bridges between perspectives..."
+            ];
+
+            const getRandomLoadingMessage = () => {
+                return loadingMessages[Math.floor(Math.random() * loadingMessages.length)];
+            };
+
+            // ─── API Helper (with retry + exponential backoff) ───
+            const callAPI = async (message, systemRole, { retries = 2, signal } = {}) => {
+                let lastError;
+                for (let attempt = 0; attempt <= retries; attempt++) {
+                    try {
+                        const response = await fetch(API_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message, systemRole }),
+                            signal
+                        });
+                        if (!response.ok) {
+                            // 4xx is usually not worth retrying; 5xx might be transient
+                            if (response.status >= 400 && response.status < 500) {
+                                throw new Error(`Request failed (${response.status})`);
+                            }
+                            throw new Error(`Server error (${response.status})`);
+                        }
+                        const data = await response.json();
+                        if (data.type === 'error' || data.error) {
+                            throw new Error(data.error?.message || JSON.stringify(data.error) || 'API error');
+                        }
+                        return data.response || data.content || data.message || JSON.stringify(data);
+                    } catch (err) {
+                        lastError = err;
+                        if (err.name === 'AbortError') throw err;
+                        // Don't retry on the last attempt
+                        if (attempt === retries) break;
+                        // Exponential backoff with jitter: 800ms, 2200ms
+                        const delay = 800 * Math.pow(2.5, attempt) + Math.random() * 300;
+                        await new Promise(r => setTimeout(r, delay));
+                    }
+                }
+                throw lastError;
+            };
+
+            // ─── Stage: Welcome → Query ───
+            const proceedToQuery = () => setStage('query');
+
+            // ─── Stage: Query → Questions (two-step: analyse, then generate) ───
+            const handleInitialSubmit = async (e) => {
+                e.preventDefault();
+                if (!initialQuery.trim()) return;
+                
+                setLoading(true);
+                setLoadingMessage(getRandomLoadingMessage());
+
+                try {
+                    // STEP 1: Analyse the question — understand what's really being asked
+                    const analysisPrompt = `You are a perceptive intake analyst. A person has come to a multi-perspective decision-support system with this:
+
+"${initialQuery}"
+
+Before we generate intake questions, analyse what's really going on. Respond with a brief JSON object:
+{
+  "stated_question": "What they're explicitly asking",
+  "likely_real_question": "What they're probably actually grappling with underneath the framing",
+  "key_assumptions": ["Assumptions they seem to be making that could be challenged"],
+  "missing_context": ["Specific context that would genuinely change the quality of analysis — emotional, practical, historical"],
+  "emotional_layer": "What feelings are likely driving this but haven't been stated",
+  "pattern_signal": "Any indication this might be a recurring pattern rather than a one-off situation",
+  "framing_bias": "How they've framed this — and what reframing might reveal"
+}
+
+Be specific to THIS question. No generic observations. JSON only, no markdown.`;
+
+                    let analysis;
+                    try {
+                        const analysisRaw = await callAPI(analysisPrompt, 'intake_analyst');
+                        const cleaned = analysisRaw.replace(/```json\n?|\n?```/g, '').trim();
+                        analysis = JSON.parse(cleaned);
+                    } catch (e) {
+                        // If analysis fails, use a minimal version
+                        analysis = {
+                            stated_question: initialQuery,
+                            likely_real_question: "Unclear — need more context",
+                            key_assumptions: [],
+                            missing_context: ["Situational details", "Emotional stakes", "Prior attempts"],
+                            emotional_layer: "Not yet surfaced",
+                            pattern_signal: "Unknown",
+                            framing_bias: "Unknown"
+                        };
+                    }
+
+                    setLoadingMessage(getRandomLoadingMessage());
+
+                    // STEP 2: Generate questions informed by the analysis
+                    const questionPrompt = `You are a Socratic intake specialist for a system where five cognitive perspectives (strategic, emotional, behavioral, narrative, and priority-focused) will each analyse this person's question. Your job is to gather the context these systems need to give genuinely useful — not generic — responses.
+
+The person said: "${initialQuery}"
+
+Your analysis of what's really going on:
+${JSON.stringify(analysis, null, 2)}
+
+Generate exactly 4 questions. Each question must serve a specific purpose:
+
+1. ONE question that surfaces the emotional layer — what this actually feels like, what's at stake personally, not just practically. The Limbic System needs this.
+2. ONE question that probes for patterns — has this happened before? Is this a recurring theme? The Basal Ganglia needs behavioral history.
+3. ONE question that tests the framing — gently challenges an assumption they're making or offers a reframe. "You've described this as X — could it also be Y?"
+4. ONE question that asks for specifics — concrete details, timeline, constraints, what's already been tried. The Prefrontal Cortex needs data to work with.
+
+CRITICAL RULES:
+- Every question must be specific to THIS person's exact situation. No generic coaching questions.
+- Questions should feel like a curious, perceptive friend asking — not a therapist or a form.
+- Don't ask "What does success look like?" or "What are your values?" — these are overused and vague.
+- The placeholder should hint at the KIND of answer that helps, not repeat the question.
+- If the person's question already contains rich context, don't ask for what they've already provided.
+
+Respond with ONLY a JSON array:
+[{"question": "...", "placeholder": "Hint..."}]`;
+
+                    const content = await callAPI(questionPrompt, 'question_generator');
+                    const cleanedQ = content.replace(/```json\n?|\n?```/g, '').trim();
+                    let questions;
+                    try {
+                        questions = JSON.parse(cleanedQ);
+                    } catch (e) {
+                        questions = [
+                            { question: "What does this situation actually feel like when you sit with it — not what you think about it, but how it feels?", placeholder: "The emotional reality, not the logical framing..." },
+                            { question: "Have you been in a similar situation before? What happened?", placeholder: "Previous patterns or echoes of this..." },
+                            { question: "You've framed this in a particular way — is there another way to see it that you've been avoiding?", placeholder: "The reframe you haven't let yourself consider..." },
+                            { question: "What's the most concrete, specific detail about this situation that you haven't mentioned yet?", placeholder: "The specifics that would change the picture..." }
+                        ];
+                    }
+                    setGeneratedQuestions(questions);
+                    setStage('questions');
+                } catch (error) {
+                    console.error('Error generating questions:', error);
+                    showToast('Something went wrong generating questions. Please try again.');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            // ─── Stage: Questions → Forum (parallel + progressive reveal) ───
+            const fetchSystemResponse = (system, enrichedPrompt) => {
+                const prompt = getSystemPrompt(system, enrichedPrompt);
+                callAPI(prompt, system.id)
+                    .then(content => {
+                        setResponses(prev => prev.map(r =>
+                            r.id === system.id ? { ...r, response: content, loading: false, error: null } : r
+                        ));
+                    })
+                    .catch(error => {
+                        console.error(`Error from ${system.name}:`, error);
+                        setResponses(prev => prev.map(r =>
+                            r.id === system.id ? { ...r, loading: false, error: error.message || 'Failed to respond' } : r
+                        ));
+                    });
+            };
+
+            const submitToForum = () => {
+                const savedAnswers = generatedQuestions.map((q, idx) => ({
+                    question: q.question,
+                    answer: answers[idx] || ''
+                }));
+                setContextualAnswers(savedAnswers);
+                setStage('forum');
+                setLoading(false);
+
+                let enrichedPrompt = `Question: ${initialQuery}\n\nContext gathered through intake:\n`;
+                generatedQuestions.forEach((q, idx) => {
+                    enrichedPrompt += `\nQ: ${q.question}\nA: ${answers[idx] || '(No answer provided)'}\n`;
+                });
+                setEnrichedPromptCache(enrichedPrompt);
+
+                // Initialize all 5 cards in loading state immediately so the user sees them
+                setResponses(neuralSystems.map(s => ({ ...s, response: '', loading: true, error: null })));
+
+                // Kick off all 5 in parallel — each card fills in independently as it arrives
+                neuralSystems.forEach(system => fetchSystemResponse(system, enrichedPrompt));
+            };
+
+            const retrySystem = (systemId) => {
+                const system = neuralSystems.find(s => s.id === systemId);
+                if (!system || !enrichedPromptCache) return;
+                setResponses(prev => prev.map(r =>
+                    r.id === systemId ? { ...r, loading: true, error: null } : r
+                ));
+                fetchSystemResponse(system, enrichedPromptCache);
+            };
+
+            // True when every card has finished (success or error) — gates downstream UI
+            const allComplete = responses.length > 0 && responses.every(r => !r.loading);
+            const anyErrored = responses.some(r => r.error);
+            const successfulResponses = responses.filter(r => !r.loading && !r.error && r.response);
+
+            // ─── Expand a system's response ───
+            const handleExpand = async (systemId) => {
+                if (expandedContent[systemId]) {
+                    setExpandedSystems(prev => ({ ...prev, [systemId]: !prev[systemId] }));
+                    return;
+                }
+                
+                setExpandLoading(prev => ({ ...prev, [systemId]: true }));
+                setExpandedSystems(prev => ({ ...prev, [systemId]: true }));
+                
+                const system = neuralSystems.find(s => s.id === systemId);
+                const currentResponse = responses.find(r => r.id === systemId)?.response || '';
+                const prompt = getExpandPrompt(system, enrichedPromptCache, currentResponse);
+                
+                try {
+                    const content = await callAPI(prompt, systemId);
+                    setExpandedContent(prev => ({ ...prev, [systemId]: content }));
+                } catch (error) {
+                    setExpandedContent(prev => ({ ...prev, [systemId]: 'Unable to expand at this time.' }));
+                }
+                setExpandLoading(prev => ({ ...prev, [systemId]: false }));
+            };
+
+            // ─── Refine a system's response ───
+            const handleRefine = async (systemId) => {
+                const refinement = refineText[systemId];
+                if (!refinement?.trim()) return;
+
+                setRefineLoading(prev => ({ ...prev, [systemId]: true }));
+
+                const system = neuralSystems.find(s => s.id === systemId);
+                const currentResponse = responses.find(r => r.id === systemId)?.response || '';
+                const prompt = getSystemPrompt(system, enrichedPromptCache, true, currentResponse, refinement);
+
+                try {
+                    const content = await callAPI(prompt, systemId);
+                    setResponses(prev => prev.map(r => 
+                        r.id === systemId ? { ...r, response: content } : r
+                    ));
+                    // Clear expanded content since base response changed
+                    setExpandedContent(prev => { const next = {...prev}; delete next[systemId]; return next; });
+                    setExpandedSystems(prev => ({ ...prev, [systemId]: false }));
+                    setRefineText(prev => ({ ...prev, [systemId]: '' }));
+                    setRefineOpen(prev => ({ ...prev, [systemId]: false }));
+                } catch (error) {
+                    showToast('Unable to refine. Please try again.');
+                }
+                setRefineLoading(prev => ({ ...prev, [systemId]: false }));
+            };
+
+            // ─── Reactions ───
+            const handleReaction = (systemId, reaction) => {
+                setUserReactions(prev => {
+                    if (prev[systemId] === reaction) {
+                        const next = { ...prev };
+                        delete next[systemId];
+                        return next;
+                    }
+                    return { ...prev, [systemId]: reaction };
+                });
+            };
+
+            // ─── Follow-up conversation ───
+            const handleContinueConversation = async () => {
+                if (!sharedFollowUp.trim()) return;
+                const systemsToAsk = responses.filter(sys => selectedSystems[sys.id]);
+                if (systemsToAsk.length === 0) {
+                    showToast('Select at least one system to continue the conversation with (use the checkboxes).');
+                    return;
+                }
+
+                const loadingStates = {};
+                systemsToAsk.forEach(sys => loadingStates[sys.id] = true);
+                setFollowUpLoading(loadingStates);
+
+                const results = await Promise.all(systemsToAsk.map(async (system) => {
+                    try {
+                        const prompt = `You are the ${system.name} in a multi-perspective decision-support system.
+Your perspective: ${system.focus}
+
+You previously responded to a user's question. Now they have a follow-up.
+
+Original question: ${initialQuery}
+Your previous response: ${system.response}
+
+Their follow-up: ${sharedFollowUp}
+
+Respond naturally in your voice. Be concise but thorough. No headers or bullet points.`;
+
+                        const content = await callAPI(prompt, system.id);
+                        return { systemId: system.id, followUp: { question: sharedFollowUp, response: content } };
+                    } catch (error) {
+                        return { systemId: system.id, followUp: { question: sharedFollowUp, response: 'Unable to respond.' } };
+                    }
+                }));
+
+                const newFollowUpResponses = { ...followUpResponses };
+                results.forEach(result => {
+                    newFollowUpResponses[result.systemId] = [
+                        ...(newFollowUpResponses[result.systemId] || []),
+                        result.followUp
+                    ];
+                });
+                setFollowUpResponses(newFollowUpResponses);
+                setSharedFollowUp('');
+                setSelectedSystems({});
+                setFollowUpLoading({});
+            };
+
+            // ─── Tension / Conflict Analysis ───
+            const calculateTensionScore = (resps) => {
+                if (resps.length < 2) return 0;
+                const disagreementWords = ['however', 'but', 'disagree', 'conflict', 'tension', 'concern', 'warning', 'risk', 'instead', 'different'];
+                const urgencyWords = ['urgent', 'immediate', 'now', 'critical', 'priority'];
+                const cautionWords = ['slow', 'careful', 'patient', 'wait', 'consider', 'plan'];
+                let score = 0;
+                const hasUrgency = resps.some(r => urgencyWords.some(w => r.response.toLowerCase().includes(w)));
+                const hasCaution = resps.some(r => cautionWords.some(w => r.response.toLowerCase().includes(w)));
+                if (hasUrgency && hasCaution) score += 30;
+                const disagreementCount = resps.reduce((c, r) => c + disagreementWords.filter(w => r.response.toLowerCase().includes(w)).length, 0);
+                score += Math.min(disagreementCount * 5, 40);
+                const lengths = resps.map(r => r.response.length);
+                const avg = lengths.reduce((a, b) => a + b) / lengths.length;
+                const variance = lengths.reduce((s, l) => s + Math.abs(l - avg), 0) / lengths.length;
+                if (variance > 300) score += 20;
+                return Math.min(score, 100);
+            };
+
+            const getTensionLabel = (score) => {
+                if (score < 20) return { emoji: '🤝', label: 'Strong Agreement', color: 'from-emerald-400 to-green-500' };
+                if (score < 40) return { emoji: '✓', label: 'General Alignment', color: 'from-blue-400 to-cyan-500' };
+                if (score < 60) return { emoji: '⚖️', label: 'Balanced Perspectives', color: 'from-amber-400 to-orange-500' };
+                if (score < 80) return { emoji: '⚡', label: 'Notable Tension', color: 'from-orange-500 to-red-500' };
+                return { emoji: '🔥', label: 'High Tension', color: 'from-red-500 to-rose-600' };
+            };
+
+            const identifyConflicts = (resps) => {
+                const conflicts = [];
+                const pf = resps.find(r => r.id === 'prefrontal');
+                const sa = resps.find(r => r.id === 'salience');
+                const li = resps.find(r => r.id === 'limbic');
+                if (pf && sa) {
+                    const pfCautious = /\b(plan|careful|consider|analyse|weigh)\b/i.test(pf.response);
+                    const saUrgent = /\b(urgent|now|immediate|stop|priority)\b/i.test(sa.response);
+                    if (pfCautious && saUrgent) conflicts.push('Strategic patience vs. immediate priority');
+                }
+                if (pf && li) {
+                    const liEmotional = /\b(feel|heart|care|love|afraid|want)\b/i.test(li.response);
+                    const pfLogical = /\b(rational|logical|data|evidence|framework)\b/i.test(pf.response);
+                    if (liEmotional && pfLogical) conflicts.push('Emotional truth vs. rational analysis');
+                }
+                return conflicts;
+            };
+
+            // ─── Transfer to Counsel ───
+            const extractSingleInsight = (response) => {
+                const paras = response.split('\n\n').filter(p => p.trim().length > 30);
+                if (paras.length === 0) return response.substring(0, 250);
+                return paras[0].length > 250 ? paras[0].substring(0, 250) + '...' : paras[0];
+            };
+
+            const transferToCounsel = async () => {
+                try {
+                    setTransferring(true);
+
+                    // Generate smart pattern question
+                    const tensions = identifyConflicts(responses);
+                    const prompt = `Based on this analysis, generate ONE insightful "Why do I..." question that helps the person examine their underlying pattern.
+
+Original question: "${initialQuery}"
+Key tensions: ${tensions.join(', ') || 'None identified'}
+
+System perspectives (summarised):
+${responses.map(r => `- ${r.name}: ${extractSingleInsight(r.response).substring(0, 120)}...`).join('\n')}
+
+User reactions (critical signal):
+${Object.entries(userReactions).map(([id, reaction]) => {
+    const system = neuralSystems.find(s => s.id === id);
+    return `- ${system?.name}: ${reaction}`;
+}).join('\n') || 'No reactions recorded'}
+
+${Object.entries(userReactions).some(([_, r]) => r === 'probably-right') 
+    ? '\nIMPORTANT: The user selected "probably right but not ready to admit it" — this is the strongest signal. The pattern question should probe the resistance they showed in that specific system\'s territory.' 
+    : ''}
+
+Return ONLY the question text. Start with "Why do I..." Be specific to their situation. One sentence.`;
+
+                    let smartQuestion;
+                    try {
+                        smartQuestion = (await callAPI(prompt, 'question_generator')).trim().replace(/^["']|["']$/g, '');
+                    } catch (e) {
+                        smartQuestion = `Why do I approach "${initialQuery.substring(0, 60)}..." the way I do?`;
+                    }
+
+                    const transferData = {
+                        source: 'council',
+                        timestamp: Date.now(),
+                        originalQuestion: initialQuery,
+                        contextualAnswers,
+                        councilSummary: (() => {
+                            const tensions = identifyConflicts(responses);
+                            const theme = tensions.length > 0 ? tensions[0] : 'multiple perspectives worth examining';
+                            return `The Council noticed ${theme.toLowerCase()}.`;
+                        })(),
+                        suggestedPatternQuestion: smartQuestion,
+                        responses: responses.map(r => ({
+                            id: r.id,
+                            name: r.name,
+                            focus: r.focus,
+                            keyInsight: extractSingleInsight(r.response)
+                        })),
+                        keyInsightsText: responses.map(r => `${r.name}: ${extractSingleInsight(r.response)}`).join('\n\n'),
+                        tensionScore: calculateTensionScore(responses),
+                        userReactions,
+                        flinchData: Object.entries(userReactions)
+                            .filter(([_, reaction]) => reaction === 'probably-right')
+                            .map(([id, _]) => ({
+                                systemId: id,
+                                systemName: neuralSystems.find(s => s.id === id)?.name,
+                                insight: extractSingleInsight(responses.find(r => r.id === id)?.response || '')
+                            }))
+                    };
+
+                    const response = await fetch(`${WORKER_URL}/store`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(transferData)
+                    });
+                    if (!response.ok) throw new Error('Transfer failed');
+                    const { token } = await response.json();
+
+                    // Set cookie so Counsel knows they've done the Council journey
+                    localStorage.setItem('councilCompleted', JSON.stringify({
+                        timestamp: Date.now(),
+                        question: initialQuery.substring(0, 100)
+                    }));
+
+                    // Session has been transferred — clear the in-progress snapshot
+                    try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+
+                    window.location.href = `https://www.cognitivecounsel.com/?from=council&t=${token}`;
+                } catch (error) {
+                    console.error('Transfer error:', error);
+                    showToast('Unable to transfer to Counsel. Please try again.');
+                    setTransferring(false);
+                }
+            };
+
+            // ─── Export ───
+            const copyToClipboard = () => {
+                const tension = getTensionLabel(calculateTensionScore(responses));
+                let text = `COGNITIVE COUNCIL ANALYSIS\n${'='.repeat(40)}\n\n`;
+                text += `Question: ${initialQuery}\nNeural Consensus: ${tension.label}\n\n${'='.repeat(40)}\n\n`;
+                responses.forEach(system => {
+                    text += `${system.name.toUpperCase()}\n${system.focus}\n---\n${system.response}\n`;
+                    if (expandedContent[system.id]) text += `\n[Expanded]\n${expandedContent[system.id]}\n`;
+                    if (userReactions[system.id]) {
+                        const labels = { 'strongly-agree': 'Strongly Agree', 'agree': 'Agree', 'neutral': 'Neutral', 'disagree': 'Disagree', 'strongly-disagree': 'Strongly Disagree', 'probably-right': "Probably right but not ready to admit it" };
+                        text += `\nReaction: ${labels[userReactions[system.id]]}\n`;
+                    }
+                    if (followUpResponses[system.id]) {
+                        followUpResponses[system.id].forEach(f => { text += `\nFollow-up: ${f.question}\nResponse: ${f.response}\n`; });
+                    }
+                    text += `\n${'='.repeat(40)}\n\n`;
+                });
+                navigator.clipboard.writeText(text)
+                    .then(() => showToast('Copied to clipboard.', 'success'))
+                    .catch(err => showToast('Copy failed: ' + (err?.message || err)));
+            };
+
+            const downloadPDF = () => {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const strip = (text) => text.replace(/#{1,6}\s+/g,'').replace(/\*\*(.+?)\*\*/g,'$1').replace(/\*(.+?)\*/g,'$1').replace(/`(.+?)`/g,'$1').replace(/\[(.+?)\]\(.+?\)/g,'$1').replace(/^[-*+]\s+/gm,'• ').replace(/^\d+\.\s+/gm,'• ').replace(/---+/g,'').trim();
+                let y = 20; const lh = 6; const mw = 180; const ph = doc.internal.pageSize.height;
+                doc.setFontSize(16); doc.setFont(undefined,'bold');
+                doc.text('Cognitive Council Analysis', 105, y, {align:'center'}); y += lh*2+4;
+                doc.setFontSize(10); doc.setFont(undefined,'bold'); doc.text('Question:', 15, y); y += lh;
+                doc.setFont(undefined,'italic');
+                const ql = doc.splitTextToSize(initialQuery, mw); doc.text(ql, 15, y); y += ql.length*lh+8;
+                responses.forEach(sys => {
+                    if (y > ph-40) { doc.addPage(); y = 20; }
+                    doc.setFontSize(12); doc.setFont(undefined,'bold'); doc.text(sys.name.toUpperCase(), 15, y); y += lh+1;
+                    doc.setFontSize(9); doc.setFont(undefined,'italic'); doc.text(sys.focus, 15, y); y += lh+3;
+                    doc.setFontSize(9); doc.setFont(undefined,'normal');
+                    const rl = doc.splitTextToSize(strip(sys.response), mw);
+                    rl.forEach(line => { if (y > ph-20){doc.addPage();y=20;} doc.text(line,15,y); y+=lh; });
+                    y += 8;
+                });
+                doc.save('cognitive-council-analysis.pdf');
+            };
+
+            // ─── Reset ───
+            const resetForum = () => {
+                setStage('query');
+                setInitialQuery('');
+                setGeneratedQuestions([]);
+                setAnswers({});
+                setResponses([]);
+                setUserReactions({});
+                setExpandedSystems({});
+                setExpandedContent({});
+                setRefineOpen({});
+                setRefineText({});
+                setFollowUpResponses({});
+                setSelectedSystems({});
+                setEnrichedPromptCache('');
+                setContextualAnswers([]);
+                try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+            };
+
+            // ─── Scroll to top on stage change ───
+            useEffect(() => {
+                if (stage !== 'forum' || !loading) {
+                    window.scrollTo({ top: 0, behavior: 'instant' });
+                }
+            }, [stage]);
+
+            // ─── Session restore on mount ───
+            useEffect(() => {
+                if (hasRestoredRef.current) return;
+                hasRestoredRef.current = true;
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (!raw) return;
+                    const session = JSON.parse(raw);
+                    if (!session?.timestamp || Date.now() - session.timestamp > SESSION_TTL_MS) {
+                        localStorage.removeItem(STORAGE_KEY);
+                        return;
+                    }
+                    if (!session.stage || session.stage === 'welcome') return;
+                    setResumeAvailable(session);
+                } catch (e) {
+                    try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+                }
+            }, []);
+
+            const resumeSession = () => {
+                if (!resumeAvailable) return;
+                const s = resumeAvailable;
+                setInitialQuery(s.initialQuery || '');
+                setGeneratedQuestions(s.generatedQuestions || []);
+                setAnswers(s.answers || {});
+                setContextualAnswers(s.contextualAnswers || []);
+                setUserReactions(s.userReactions || {});
+                setFollowUpResponses(s.followUpResponses || {});
+                setExpandedContent(s.expandedContent || {});
+                setEnrichedPromptCache(s.enrichedPromptCache || '');
+                // Only restore responses that fully completed; drop loading/error placeholders
+                const completed = (s.responses || []).filter(r => !r.loading && !r.error && r.response);
+                if (s.stage === 'forum' && completed.length === neuralSystems.length) {
+                    setResponses(completed);
+                    setStage('forum');
+                } else {
+                    // Mid-flight forum sessions return to questions stage so they can re-convene
+                    setStage(s.stage === 'forum' ? 'questions' : s.stage);
+                    setResponses([]);
+                }
+                setResumeAvailable(null);
+            };
+
+            const dismissResume = () => {
+                setResumeAvailable(null);
+                try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+            };
+
+            // ─── Session save on relevant state changes ───
+            useEffect(() => {
+                if (!hasRestoredRef.current) return;
+                if (stage === 'welcome') return;
+                if (resumeAvailable) return; // don't overwrite restorable snapshot before user decides
+                try {
+                    const session = {
+                        stage,
+                        initialQuery,
+                        generatedQuestions,
+                        answers,
+                        contextualAnswers,
+                        responses,
+                        userReactions,
+                        followUpResponses,
+                        expandedContent,
+                        enrichedPromptCache,
+                        timestamp: Date.now()
+                    };
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+                } catch (e) { /* quota exceeded or storage disabled — silent */ }
+            }, [stage, initialQuery, generatedQuestions, answers, contextualAnswers, responses, userReactions, followUpResponses, expandedContent, enrichedPromptCache, resumeAvailable]);
+
+            // ─── Reaction Labels ───
+            const reactions = [
+                { value: 'strongly-agree', label: 'Strongly agree', emoji: '💯' },
+                { value: 'agree', label: 'Agree', emoji: '👍' },
+                { value: 'neutral', label: 'Neutral', emoji: '🤔' },
+                { value: 'disagree', label: 'Disagree', emoji: '👎' },
+                { value: 'strongly-disagree', label: 'Strongly disagree', emoji: '❌' },
+                { value: 'probably-right', label: "Probably right but I'm not ready to admit it", emoji: '😬' }
+            ];
+
+            // ═══════════════════════════════════════
+            //  RENDER
+            // ═══════════════════════════════════════
+
+            return (
+                <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-indigo-950 font-body">
+                    <CookieBar />
+
+                    {/* Toast notifications */}
+                    {toast && (
+                        <div
+                            key={toast.id}
+                            role="status"
+                            aria-live="polite"
+                            className={`fixed top-4 right-4 z-50 max-w-sm px-4 py-3 rounded-xl shadow-lg backdrop-blur-sm border animate-fade-in text-sm ${
+                                toast.type === 'success'
+                                    ? 'bg-emerald-500/90 border-emerald-400/40 text-white'
+                                    : 'bg-rose-500/90 border-rose-400/40 text-white'
+                            }`}
+                        >
+                            <div className="flex items-start gap-3">
+                                <span className="flex-1">{toast.message}</span>
+                                <button
+                                    onClick={() => setToast(null)}
+                                    className="text-white/80 hover:text-white text-lg leading-none"
+                                    aria-label="Dismiss"
+                                >×</button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="max-w-3xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+
+                        {/* Resume previous session banner */}
+                        {resumeAvailable && stage === 'welcome' && (
+                            <div className="bg-indigo-500/10 border border-indigo-400/30 rounded-2xl p-4 mb-6 animate-fade-in">
+                                <div className="flex items-start gap-3 flex-wrap">
+                                    <div className="flex-1 min-w-[200px]">
+                                        <p className="text-indigo-200 text-sm font-medium mb-1">Pick up where you left off?</p>
+                                        <p className="text-slate-400 text-xs italic">"{(resumeAvailable.initialQuery || '').substring(0, 120)}{(resumeAvailable.initialQuery || '').length > 120 ? '…' : ''}"</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={resumeSession}
+                                            className="px-4 py-1.5 bg-indigo-500/30 hover:bg-indigo-500/40 text-indigo-100 text-sm rounded-lg transition-colors border border-indigo-400/40"
+                                        >Resume</button>
+                                        <button
+                                            onClick={dismissResume}
+                                            className="px-3 py-1.5 text-slate-400 hover:text-slate-200 text-sm transition-colors"
+                                        >Start fresh</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ─── WELCOME STAGE ─── */}
+                        {stage === 'welcome' && (
+                            <div className="min-h-[80vh] flex flex-col justify-center animate-fade-in">
+                                <div className="text-center mb-12">
+                                    <div className="flex justify-center mb-8">
+                                        <div className="relative">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" className="w-20 h-20">
+                                                <defs>
+                                                    <linearGradient id="brainGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                                        <stop offset="0%" style={{stopColor:'#60a5fa', stopOpacity:1}} />
+                                                        <stop offset="100%" style={{stopColor:'#818cf8', stopOpacity:1}} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <g fill="url(#brainGrad)">
+                                                    <path d="M 30 35 Q 25 35 22 40 Q 20 45 20 50 Q 20 58 24 64 Q 28 70 35 72 Q 42 74 50 74 Q 58 74 65 72 Q 72 70 76 64 Q 80 58 80 50 Q 80 45 78 40 Q 75 35 70 35 Q 68 30 65 27 Q 60 24 55 24 Q 50 23 45 24 Q 40 24 35 27 Q 32 30 30 35 Z"/>
+                                                    <circle cx="32" cy="42" r="6" opacity="0.3"/>
+                                                    <circle cx="28" cy="54" r="5" opacity="0.3"/>
+                                                    <circle cx="68" cy="42" r="6" opacity="0.3"/>
+                                                    <circle cx="72" cy="54" r="5" opacity="0.3"/>
+                                                    <circle cx="42" cy="32" r="4" opacity="0.3"/>
+                                                    <circle cx="58" cy="32" r="4" opacity="0.3"/>
+                                                </g>
+                                                <g>
+                                                    <circle cx="40" cy="48" r="4" fill="white"/>
+                                                    <circle cx="60" cy="48" r="4" fill="white"/>
+                                                    <circle cx="41.5" cy="47" r="1.5" fill="#1e1b4b"/>
+                                                    <circle cx="61.5" cy="47" r="1.5" fill="#1e1b4b"/>
+                                                    <circle cx="39.5" cy="46.5" r="1" fill="white"/>
+                                                    <circle cx="59.5" cy="46.5" r="1" fill="white"/>
+                                                    <ellipse cx="32" cy="52" rx="3" ry="2" fill="#93c5fd" opacity="0.4"/>
+                                                    <ellipse cx="68" cy="52" rx="3" ry="2" fill="#93c5fd" opacity="0.4"/>
+                                                    <path d="M 42 58 Q 50 62 58 58" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+                                                </g>
+                                            </svg>
+                                        </div>
+                                    </div>
+
+                                    <h1 className="font-display text-4xl sm:text-5xl text-white mb-3">
+                                        Cognitive Council
+                                    </h1>
+                                    <div className="flex items-center justify-center gap-3 mb-8">
+                                        <span className="px-3 py-1 bg-blue-500/20 text-blue-300 text-xs font-semibold rounded-full border border-blue-400/30 tracking-wider uppercase">
+                                            Beta
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="max-w-xl mx-auto space-y-6 text-center">
+                                    <p className="text-slate-300 text-lg leading-relaxed animate-fade-in delay-100">
+                                        This isn't a chatbot. It's five distinct cognitive systems that will each examine your question from a fundamentally different angle.
+                                    </p>
+                                    <p className="text-slate-400 leading-relaxed animate-fade-in delay-200">
+                                        Before they respond, the system will ask you questions first — not because it needs instructions, but because better context produces better thinking. The quality of what you get out depends on what you put in.
+                                    </p>
+                                    <div className="pt-4 animate-fade-in delay-300">
+                                        <div className="flex justify-center gap-3 mb-6 text-2xl">
+                                            {neuralSystems.map((s, i) => (
+                                                <span key={s.id} className="opacity-60 hover:opacity-100 transition-opacity" title={s.name}>
+                                                    {s.emoji}
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <p className="text-slate-500 text-sm mb-8">
+                                            Strategic Analysis · Emotional Truth · Behavioral Patterns · Narrative Identity · Priority Focus
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={proceedToQuery}
+                                        className="animate-fade-in delay-400 px-8 py-3.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30"
+                                    >
+                                        Begin →
+                                    </button>
+                                </div>
+
+                                <div className="mt-16 text-center animate-fade-in delay-500">
+                                    <p className="text-slate-600 text-xs">
+                                        Created by Nicole Scheid & Claude (Anthropic) · v2.4                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ─── QUERY STAGE ─── */}
+                        {stage === 'query' && (
+                            <div className="animate-fade-in">
+                                <div className="text-center mb-8">
+                                    <h2 className="font-display text-3xl text-white mb-2">What's on your mind?</h2>
+                                    <p className="text-slate-400">A decision, a question, something you're stuck on — describe it however feels natural.</p>
+                                </div>
+                                
+                                {loading ? (
+                                    <div className="text-center py-16">
+                                        <div className="flex justify-center gap-3 mb-6">
+                                            {neuralSystems.map(s => (
+                                                <span key={s.id} className="text-3xl animate-pulse">{s.emoji}</span>
+                                            ))}
+                                        </div>
+                                        <p className="text-white text-lg mb-2">{loadingMessage}</p>
+                                        <p className="text-slate-500 text-sm">Generating your intake questions... 30-60 seconds.</p>
+                                    </div>
+                                ) : (
+                                    <div className="bg-white/5 backdrop-blur rounded-2xl p-6 sm:p-8 border border-white/10">
+                                        <form onSubmit={handleInitialSubmit}>
+                                            <textarea
+                                                value={initialQuery}
+                                                onChange={(e) => setInitialQuery(e.target.value)}
+                                                placeholder="Describe what you're thinking about, as openly as you can..."
+                                                className="w-full h-32 bg-white/5 text-white placeholder-slate-500 rounded-xl p-4 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 border border-white/10 resize-none"
+                                                autoFocus
+                                            />
+                                            <button
+                                                type="submit"
+                                                disabled={!initialQuery.trim()}
+                                                className="mt-4 w-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium py-3.5 rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                Continue →
+                                            </button>
+                                        </form>
+
+                                        <div className="mt-6 pt-6 border-t border-white/10 text-slate-500 text-sm space-y-2">
+                                            <p className="text-slate-400 text-xs uppercase tracking-wider mb-3">Or start with one of these:</p>
+                                            <p className="cursor-pointer hover:text-slate-300 transition-colors" onClick={() => setInitialQuery("I'm thinking about making a career change but I'm not sure if it's the right time.")}>
+                                                💭 I'm thinking about a career change but I'm not sure if it's the right time
+                                            </p>
+                                            <p className="cursor-pointer hover:text-slate-300 transition-colors" onClick={() => setInitialQuery("I have a conflict with a colleague and I'm not sure how to handle it.")}>
+                                                💭 I have a conflict with a colleague and I'm not sure how to handle it
+                                            </p>
+                                            <p className="cursor-pointer hover:text-slate-300 transition-colors" onClick={() => setInitialQuery("I keep starting things and not finishing them and I want to understand why.")}>
+                                                💭 I keep starting things and not finishing them and I want to understand why
+                                            </p>
+                                            <p className="cursor-pointer hover:text-slate-300 transition-colors" onClick={() => setInitialQuery("I need to make a big decision and I feel paralysed by the options.")}>
+                                                💭 I need to make a big decision and I feel paralysed by the options
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ─── QUESTIONS STAGE (Socratic Intake) ─── */}
+                        {stage === 'questions' && (
+                            <div className="animate-fade-in">
+                                <div className="mb-8">
+                                    <h2 className="font-display text-2xl text-white mb-2">Let's build some context first</h2>
+                                    <p className="text-slate-400 text-sm">
+                                        These questions help the five systems give you something genuinely useful rather than generic. 
+                                        Answer what resonates — you can skip any that don't apply.
+                                    </p>
+                                    <div className="mt-4 p-4 bg-white/5 rounded-lg border border-white/10">
+                                        <p className="text-slate-300 italic">"{initialQuery}"</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6">
+                                    {generatedQuestions.map((q, idx) => (
+                                        <div key={idx} className="animate-fade-in" style={{animationDelay: `${idx * 100}ms`}}>
+                                            <label className="text-white font-medium block mb-2">
+                                                {q.question}
+                                            </label>
+                                            <textarea
+                                                value={answers[idx] || ''}
+                                                onChange={(e) => setAnswers(prev => ({...prev, [idx]: e.target.value}))}
+                                                placeholder={q.placeholder}
+                                                className="w-full h-24 bg-white/5 text-white placeholder-slate-500 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50 border border-white/10 resize-none"
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="flex gap-4 mt-8">
+                                    <button
+                                        onClick={resetForum}
+                                        className="flex-1 bg-white/5 text-slate-300 font-medium py-3.5 rounded-xl hover:bg-white/10 transition-all border border-white/10"
+                                    >
+                                        ← Start Over
+                                    </button>
+                                    <button
+                                        onClick={submitToForum}
+                                        disabled={loading}
+                                        className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium py-3.5 rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all disabled:opacity-40"
+                                    >
+                                        Convene the Council →
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ─── FORUM STAGE (Results) ─── */}
+                        {stage === 'forum' && (
+                            <div className="space-y-6">
+                                {/* Progress strip — shown while any perspective is still arriving */}
+                                {!allComplete && responses.length > 0 && (() => {
+                                    const ready = responses.filter(r => !r.loading).length;
+                                    const total = responses.length;
+                                    const pct = (ready / total) * 100;
+                                    return (
+                                        <div className="bg-white/5 backdrop-blur rounded-2xl p-5 border border-white/10 animate-fade-in">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Council convening</h3>
+                                                <span className="text-slate-300 text-sm font-medium">{ready} of {total} ready</span>
+                                            </div>
+                                            <div className="relative h-2 bg-white/10 rounded-full overflow-hidden mb-2">
+                                                <div className="h-full bg-gradient-to-r from-blue-400 to-indigo-500 transition-all duration-700" style={{width: `${pct}%`}} />
+                                            </div>
+                                            <div className="flex gap-2 mt-3 flex-wrap">
+                                                {responses.map(r => (
+                                                    <span
+                                                        key={r.id}
+                                                        title={r.name}
+                                                        className={`text-xl transition-opacity ${r.loading ? 'opacity-30 animate-pulse' : r.error ? 'opacity-50 grayscale' : 'opacity-100'}`}
+                                                    >{r.emoji}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* Tension Score — only after all 5 cards complete */}
+                                {allComplete && successfulResponses.length >= 2 && (() => {
+                                    const score = calculateTensionScore(successfulResponses);
+                                    const tension = getTensionLabel(score);
+                                    const conflicts = identifyConflicts(successfulResponses);
+                                    return (
+                                        <div className="bg-white/5 backdrop-blur rounded-2xl p-5 border border-white/10 animate-fade-in">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Neural Consensus</h3>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xl">{tension.emoji}</span>
+                                                    <span className="text-white text-sm font-medium">{tension.label}</span>
+                                                </div>
+                                            </div>
+                                            <div className="relative h-2 bg-white/10 rounded-full overflow-hidden mb-2">
+                                                <div className={`h-full bg-gradient-to-r ${tension.color} transition-all duration-1000`} style={{width: `${score}%`}} />
+                                            </div>
+                                            <div className="flex justify-between text-xs text-slate-600">
+                                                <span>Agreement</span><span>Tension</span>
+                                            </div>
+                                            {conflicts.length > 0 && (
+                                                <div className="mt-3 pt-3 border-t border-white/10">
+                                                    {conflicts.map((c, i) => (
+                                                        <p key={i} className="text-sm text-blue-300">⚡ {c}</p>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+
+                                        {/* Question recap */}
+                                        <div className="bg-white/5 backdrop-blur rounded-2xl p-5 border border-white/10 animate-fade-in delay-100">
+                                            <p className="text-slate-400 text-xs uppercase tracking-wider mb-2">Your question</p>
+                                            <p className="text-white italic">"{initialQuery}"</p>
+                                            <details className="mt-3">
+                                                <summary className="text-slate-500 text-xs cursor-pointer hover:text-slate-400">View intake context</summary>
+                                                <div className="mt-3 space-y-2 text-sm">
+                                                    {generatedQuestions.map((q, idx) => (
+                                                        <div key={idx} className="border-l-2 border-blue-500/30 pl-3">
+                                                            <p className="text-slate-400">{q.question}</p>
+                                                            <p className="text-slate-500 mt-0.5">{answers[idx] || '(skipped)'}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </details>
+                                        </div>
+
+                                        {/* ─── System Response Cards ─── */}
+                                        {responses.map((system, idx) => (
+                                            <div
+                                                key={system.id}
+                                                className={`bg-white/5 backdrop-blur rounded-2xl p-6 border ${system.bgTint || 'border-white/10'} animate-fade-in`}
+                                                style={{animationDelay: `${(idx + 2) * 100}ms`}}
+                                            >
+                                                {/* Header */}
+                                                <div className="flex items-start gap-3 mb-4">
+                                                    <div className="text-3xl flex-shrink-0">{system.emoji}</div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <h3 className="text-lg font-semibold text-white">{system.name}</h3>
+                                                        <p className="text-slate-500 text-xs">{system.focus}</p>
+                                                    </div>
+                                                </div>
+                                                
+                                                {/* Gradient line */}
+                                                <div className={`h-0.5 bg-gradient-to-r ${system.color} rounded-full mb-4 opacity-40`} />
+                                                
+                                                {/* Compact response — loading skeleton, error state, or content */}
+                                                {system.loading ? (
+                                                    <div className="space-y-2 py-1">
+                                                        <div className="h-3 bg-white/5 rounded w-full animate-pulse" />
+                                                        <div className="h-3 bg-white/5 rounded w-11/12 animate-pulse" style={{animationDelay:'120ms'}} />
+                                                        <div className="h-3 bg-white/5 rounded w-4/5 animate-pulse" style={{animationDelay:'240ms'}} />
+                                                        <p className="text-slate-500 text-xs italic mt-3">Thinking…</p>
+                                                    </div>
+                                                ) : system.error ? (
+                                                    <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-3 text-sm">
+                                                        <p className="text-rose-200 mb-2">This perspective didn't come through. {system.error}</p>
+                                                        <button
+                                                            onClick={() => retrySystem(system.id)}
+                                                            className="px-3 py-1.5 text-xs rounded-lg bg-rose-500/20 text-rose-100 hover:bg-rose-500/30 transition-colors border border-rose-500/30"
+                                                        >Retry</button>
+                                                    </div>
+                                                ) : (
+                                                    <div
+                                                        className="system-output text-slate-200 leading-relaxed text-[15px]"
+                                                        dangerouslySetInnerHTML={{ __html: renderMarkdown(system.response) }}
+                                                    />
+                                                )}
+
+                                                {/* Expanded content */}
+                                                <div className={`expand-content ${expandedSystems[system.id] ? 'open' : ''}`}>
+                                                    {expandLoading[system.id] ? (
+                                                        <p className="text-slate-400 text-sm italic mt-4 animate-pulse">Expanding perspective...</p>
+                                                    ) : expandedContent[system.id] ? (
+                                                        <div className="mt-4 pt-4 border-t border-white/10">
+                                                            <div
+                                                                className="system-output text-slate-300 leading-relaxed text-[15px]"
+                                                                dangerouslySetInnerHTML={{ __html: renderMarkdown(expandedContent[system.id]) }}
+                                                            />
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+
+                                                {/* Refine input */}
+                                                <div className={`refine-input ${refineOpen[system.id] ? 'open' : ''}`}>
+                                                    <div className="mt-4 pt-4 border-t border-white/10">
+                                                        <p className="text-slate-400 text-xs mb-2">Add context or correction — this system will re-examine:</p>
+                                                        <textarea
+                                                            value={refineText[system.id] || ''}
+                                                            onChange={(e) => setRefineText(prev => ({...prev, [system.id]: e.target.value}))}
+                                                            placeholder="Actually, the situation is more like... / What you're missing is..."
+                                                            className="w-full h-20 bg-white/5 text-white placeholder-slate-600 rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/50 border border-white/10 resize-none"
+                                                        />
+                                                        <button
+                                                            onClick={() => handleRefine(system.id)}
+                                                            disabled={!refineText[system.id]?.trim() || refineLoading[system.id]}
+                                                            className="mt-2 px-4 py-1.5 bg-blue-500/20 text-blue-300 text-sm rounded-lg hover:bg-blue-500/30 transition-colors disabled:opacity-40"
+                                                        >
+                                                            {refineLoading[system.id] ? 'Refining...' : 'Refine this perspective'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Follow-up responses */}
+                                                {followUpResponses[system.id]?.map((followUp, fIdx) => (
+                                                    <div key={fIdx} className="mt-4 pt-4 border-t border-white/10">
+                                                        <p className="text-blue-300 text-xs mb-2">Follow-up: {followUp.question}</p>
+                                                        <div className="system-output text-slate-300 text-sm leading-relaxed bg-white/5 rounded-lg p-3"
+                                                            dangerouslySetInnerHTML={{ __html: renderMarkdown(followUp.response) }}
+                                                        />
+                                                    </div>
+                                                ))}
+
+                                                {/* Action row: Expand / Refine / Reactions — only when card is loaded successfully */}
+                                                {!system.loading && !system.error && (
+                                                    <div className="mt-4 pt-4 border-t border-white/10">
+                                                        {/* Expand & Refine buttons */}
+                                                        <div className="flex gap-2 mb-3">
+                                                            <button
+                                                                onClick={() => handleExpand(system.id)}
+                                                                className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-colors border border-white/10"
+                                                            >
+                                                                {expandedSystems[system.id] ? 'Collapse' : 'Tell me more about this'}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setRefineOpen(prev => ({...prev, [system.id]: !prev[system.id]}))}
+                                                                className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-colors border border-white/10"
+                                                            >
+                                                                {refineOpen[system.id] ? 'Cancel' : "I'd like to add context"}
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Reactions */}
+                                                        <p className="text-slate-500 text-xs mb-2">How does this land?</p>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {reactions.map(r => (
+                                                                <button
+                                                                    key={r.value}
+                                                                    onClick={() => handleReaction(system.id, r.value)}
+                                                                    className={`px-2.5 py-1.5 rounded-lg text-xs transition-all ${
+                                                                        userReactions[system.id] === r.value
+                                                                            ? r.value === 'probably-right'
+                                                                                ? 'bg-amber-500/30 text-amber-200 ring-1 ring-amber-500/50'
+                                                                                : 'bg-blue-500/30 text-blue-200 ring-1 ring-blue-500/50'
+                                                                            : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-300'
+                                                                    }`}
+                                                                >
+                                                                    <span className="mr-1">{r.emoji}</span>
+                                                                    {r.label}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+
+                                        {allComplete && successfulResponses.length > 0 && (<>
+                                        {/* ─── Export ─── */}
+                                        <div className="bg-white/5 backdrop-blur rounded-2xl p-5 border border-white/10">
+                                            {anyErrored && (
+                                                <p className="text-amber-300/80 text-xs mb-3">Some perspectives didn't load — exports include only the successful ones.</p>
+                                            )}
+                                            <div className="flex gap-3">
+                                                <button onClick={copyToClipboard} className="flex-1 bg-white/5 text-slate-300 font-medium py-3 rounded-xl hover:bg-white/10 transition-all border border-white/10 text-sm">
+                                                    📋 Copy to Clipboard
+                                                </button>
+                                                <button onClick={downloadPDF} className="flex-1 bg-white/5 text-slate-300 font-medium py-3 rounded-xl hover:bg-white/10 transition-all border border-white/10 text-sm">
+                                                    📄 Download PDF
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* ─── Bridge to Counsel ─── */}
+                                        <div className="bg-gradient-to-br from-indigo-900/30 to-violet-900/30 rounded-2xl p-8 border border-indigo-500/20">
+                                            <div className="text-center space-y-4">
+                                                <h3 className="font-display text-2xl text-white">
+                                                    Ready to look inward?
+                                                </h3>
+                                                <p className="text-slate-300 max-w-lg mx-auto">
+                                                    The Council has given you perspectives on your question.
+                                                    The <strong className="text-indigo-300">Cognitive Counsel</strong> can illuminate the patterns underneath — what your question reveals about <em>you</em>.
+                                                </p>
+                                                {Object.values(userReactions).includes('probably-right') && (
+                                                    <p className="text-amber-300/80 text-sm italic">
+                                                        You flagged something you're not ready to admit. That's exactly where the pattern lives.
+                                                    </p>
+                                                )}
+                                                <div className="flex justify-center pt-2">
+                                                    <button
+                                                        onClick={transferToCounsel}
+                                                        disabled={transferring}
+                                                        className="px-8 py-3 bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-medium rounded-xl hover:from-indigo-600 hover:to-violet-600 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                                                    >
+                                                        {transferring ? 'Transferring...' : 'Take this to Counsel →'}
+                                                    </button>
+                                                </div>
+                                                <p className="text-slate-600 text-xs pt-4">
+                                                    Different mode. Deeper questions. Pattern illumination.
+                                                </p>
+                                                <button
+                                                    onClick={resetForum}
+                                                    className="text-slate-500 text-xs hover:text-slate-400 underline mt-2"
+                                                >
+                                                    Or start over with a new question
+                                                </button>
+                                            </div>
+                                        </div>
+                                        </>)}
+                            </div>
+                        )}
+
+                        {/* ─── Footer ─── */}
+                        {stage !== 'welcome' && (
+                            <div className="mt-12 pt-6 border-t border-white/5">
+                                <div className="text-center space-y-3">
+                                    <p className="text-slate-600 text-xs">
+                                        <strong className="text-slate-500">Privacy:</strong> Conversations are processed through Anthropic's Claude API. 
+                                        No data is stored by this application. Retained by Anthropic for 30 days for safety monitoring.{' '}
+                                        <a href="https://www.anthropic.com/legal/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-500/50 hover:text-blue-400">
+                                            Learn more
+                                        </a>
+                                    </p>
+                                    <p className="text-slate-700 text-xs">
+                                        Created by Nicole Scheid & Claude (Anthropic) · v2.4                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<CognitiveCouncil />, document.getElementById('root'));
+    </script>
+</body>
+</html>

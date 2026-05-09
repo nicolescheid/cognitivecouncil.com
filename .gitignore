@@ -1,0 +1,17 @@
+# Local development artifacts
+_versions/
+.claude/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Logs
+*.log
+npm-debug.log*
