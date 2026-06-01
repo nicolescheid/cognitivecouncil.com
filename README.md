@@ -62,8 +62,8 @@ Then open `http://localhost:8000`. API calls hit the production backend at `api.
 
 ## Phasing
 
-- **Phase 1 (shipped):** the core inversion — Socratic intake → gated static primers + 2–3 established exercises → interactive step-through → open-loop review with export. Thin-input handling included.
-- **Phase 2 (planned):** printable worksheet view; "none of these — describe what would help" self-authoring path; on-request bespoke exercise generation.
+- **Phase 1 (shipped):** the core inversion — Socratic intake → gated static primers + 2–3 established exercises → interactive step-through → open-loop review with export. Thin-input handling included. Copy and generated text follow a house style tuned to avoid AI-writing tells (see `HOUSE_STYLE` in `index.html`).
+- **Phase 2 (planned):** "none of these — describe what would help" self-authoring path; on-request bespoke exercise generation. (Printable worksheets dropped — online-only.)
 - **Phase 3 (later):** the Counsel relationship reworked as sister-site exploration (not a handoff).
 
 ## Privacy

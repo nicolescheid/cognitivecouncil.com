@@ -219,6 +219,18 @@ In a modern life with many overlapping groups and far weaker stakes, that same s
             { name: 'Expressive writing', tradition: 'health psychology', one_line: 'Write freely about the situation for a set time, without editing.', why_it_fits: 'Helps order thoughts when a situation feels tangled.' }
         ];
 
+        // ─── House style for generated text ───
+        // Appended to every generative prompt so the model's output reads like a
+        // plain-spoken person, not marketing copy or a chatbot. Leads with a
+        // positive voice description (research found "tell it only what NOT to do"
+        // is not a superior strategy), then names the specific patterns to avoid.
+        const HOUSE_STYLE = `WRITING STYLE — read like a thoughtful, plain-spoken person, not like AI:
+- Write in warm, plain British English. Short, varied sentences. Use everyday words and let the rhythm be a little uneven, the way real writing is.
+- Be concrete. Use the specific details the person gave you rather than abstract, general phrasing.
+- Use plain verbs (is, has, does, helps) instead of inflated ones (serves as, leverages, boasts, fosters, empowers).
+- Avoid the usual AI tells: words like delve, underscore, showcase, tapestry, testament, pivotal, intricate, robust, seamless, navigate, landscape, realm, foster, elevate, journey, unpack; openers like "In today's world", "It's worth noting that", "Let's dive in"; and the "not just X, but Y" / "it's not… it's…" construction.
+- Go easy on em dashes. Don't pad with rule-of-three lists or neat little summaries. When unsure, be plainer and more specific.`;
+
         // ─── Main Component ───
         const CognitiveCouncil = () => {
             const [stage, setStage] = useState('welcome');
@@ -271,9 +283,9 @@ In a modern life with many overlapping groups and far weaker stakes, that same s
                 "Looking for what might be at play...",
                 "Finding exercises that fit...",
                 "Mapping the terrain...",
-                "Setting the table, not laying the verdict...",
-                "Sorting the established from the outdated...",
-                "Building you a map, not an oracle..."
+                "Thinking it over...",
+                "Checking what still holds up...",
+                "Sorting through the options..."
             ];
 
             const getRandomLoadingMessage = () =>
@@ -386,6 +398,8 @@ CRITICAL RULES:
 - The placeholder hints at the KIND of answer that helps, not a repeat of the question.
 - If their question already contains rich context, don't ask for what they've already provided.
 
+${HOUSE_STYLE}
+
 Respond with ONLY a JSON array:
 [{"question": "...", "placeholder": "Hint..."}]`;
 
@@ -455,6 +469,9 @@ Recommend established, currently-practised exercises from named evidence-based t
 
 THIN INPUT: If their answers are mostly empty or very thin, set "thin_input": true and choose broadly-applicable exercises.
 
+The "one_line" and "why_it_fits" fields are shown to the person, so they must follow this style:
+${HOUSE_STYLE}
+
 Respond with ONLY this JSON, no markdown:
 {
   "thin_input": false,
@@ -498,6 +515,9 @@ Context they shared:
 ${enrichedPromptCache}
 
 Produce the exercise as a series of steps. Each step is an instruction plus a question for them to answer in their own words. Keep it faithful to how this technique is actually practised. Customise the wording to their situation using their own details where natural, but never fill in their answers for them.
+
+All text you write here is read by the person, so it must follow this style:
+${HOUSE_STYLE}
 
 Respond with ONLY this JSON, no markdown:
 {
@@ -708,7 +728,7 @@ Aim for 3 to 6 steps.`;
                                     dangerouslySetInnerHTML={{ __html: renderMarkdown(openPrimer.body) }}
                                 />
                                 <p className="text-slate-500 text-xs mt-6 pt-4 border-t border-white/10">
-                                    Offered as a possibility, not a diagnosis. This is a short, mechanism-level sketch — not the whole science.
+                                    A short sketch of one mechanism, offered as a possibility rather than a diagnosis. It isn't the whole science.
                                 </p>
                             </div>
                         </div>
@@ -787,14 +807,14 @@ Aim for 3 to 6 steps.`;
 
                                 <div className="max-w-xl mx-auto space-y-6 text-center">
                                     <p className="text-slate-300 text-lg leading-relaxed animate-fade-in delay-100">
-                                        This isn't a chatbot, and it won't tell you what to do. It's a thinking tool. Describe the dilemma you're facing, answer a few questions, and it points you toward the mental tendencies that <em>might</em> be at play — and established exercises you can work through yourself.
+                                        It won't tell you what to do. That part stays with you. Tell it what you're stuck on, answer a few questions, and it points to the habits of mind that <em>might</em> be shaping how you see things, along with a couple of exercises you can work through on your own.
                                     </p>
                                     <p className="text-slate-400 leading-relaxed animate-fade-in delay-200">
-                                        The thinking stays yours. Think of the Council as the council of your own mind — the systems that quietly shape how you decide. This is a map and a librarian, not an oracle.
+                                        The council is really just the parts of your own mind that pull on a decision. There's no oracle here. You do the thinking, and it makes the good methods easier to find.
                                     </p>
                                     <div className="pt-4 animate-fade-in delay-300">
                                         <p className="text-slate-500 text-sm mb-8 tracking-wide">
-                                            A few questions · what might be at play · exercises you work yourself
+                                            A few questions · what might be tugging at it · something to try
                                         </p>
                                     </div>
                                     <button
@@ -818,7 +838,7 @@ Aim for 3 to 6 steps.`;
                             <div className="animate-fade-in">
                                 <div className="text-center mb-8">
                                     <h2 className="font-display text-3xl text-white mb-2">What's on your mind?</h2>
-                                    <p className="text-slate-400">A decision, a question, something you're stuck on — describe it however feels natural.</p>
+                                    <p className="text-slate-400">A decision, a worry, something you keep circling back to. Say it however it comes out.</p>
                                 </div>
 
                                 {loading ? (
@@ -872,9 +892,9 @@ Aim for 3 to 6 steps.`;
                         {stage === 'questions' && (
                             <div className="animate-fade-in">
                                 <div className="mb-8">
-                                    <h2 className="font-display text-2xl text-white mb-2">Let's build some context first</h2>
+                                    <h2 className="font-display text-2xl text-white mb-2">A few questions first</h2>
                                     <p className="text-slate-400 text-sm">
-                                        A few questions about your situation. Your answers stay in your browser and help surface what might be relevant — and which exercises actually fit. Answer what resonates; skip anything that doesn't.
+                                        These help work out what's worth showing you, and which exercises actually fit. Your answers stay in your browser. Answer what feels relevant and skip the rest. The more you put in, the better the suggestions.
                                     </p>
                                     <div className="mt-4 p-4 bg-white/5 rounded-lg border border-white/10">
                                         <p className="text-slate-300 italic">"{initialQuery}"</p>
@@ -958,7 +978,7 @@ Aim for 3 to 6 steps.`;
                                             <div className="bg-white/5 backdrop-blur rounded-2xl p-6 border border-indigo-400/20">
                                                 <h3 className="font-display text-xl text-white mb-1">What might be at play</h3>
                                                 <p className="text-slate-400 text-sm mb-4">
-                                                    Tendencies often relevant to situations like yours. Offered as possibilities to understand, not a diagnosis — tap any to read more.
+                                                    Tendencies that often show up in situations like this. They're possibilities to consider, not a diagnosis. Tap any to read more.
                                                 </p>
                                                 <div className="flex flex-wrap gap-2">
                                                     {guide.relevant_mechanisms.map(id => {
@@ -983,7 +1003,7 @@ Aim for 3 to 6 steps.`;
                                             <div className="mb-4">
                                                 <h3 className="font-display text-xl text-white mb-1">Exercises you can work through</h3>
                                                 <p className="text-slate-400 text-sm">
-                                                    Established techniques from evidence-based traditions. You do the thinking — the tool just sets you up.
+                                                    Established techniques, drawn from approaches like CBT and ACT. You do the work. Each one just gives you a place to start.
                                                 </p>
                                             </div>
                                             <div className="space-y-4">
@@ -1021,10 +1041,10 @@ Aim for 3 to 6 steps.`;
                                         {/* Sister-site line — quiet, no AI, no funnel */}
                                         <div className="bg-white/5 rounded-2xl p-5 border border-white/10">
                                             <p className="text-slate-400 text-sm leading-relaxed">
-                                                Working on a recurring pattern in yourself rather than a single decision?{' '}
+                                                Chasing a pattern that keeps coming back, rather than one decision?{' '}
                                                 <a href="https://www.cognitivecounsel.com" target="_blank" rel="noopener" className="text-indigo-300 hover:text-indigo-200 underline">
                                                     Cognitive Counsel
-                                                </a>{' '}is a companion space for the bigger patterns beneath specific dilemmas — also being reworked in this same spirit.
+                                                </a>{' '}is a sister site for the bigger patterns underneath. It's being reworked the same way this one was.
                                             </p>
                                         </div>
 
@@ -1148,7 +1168,7 @@ Aim for 3 to 6 steps.`;
                                                 )}
 
                                                 <p className="text-slate-500 text-xs text-center">
-                                                    These are your words. Nothing here is sent off for analysis — what you do with them is yours.
+                                                    These are your words. Nothing here gets sent off for analysis. What you do with them is up to you.
                                                 </p>
 
                                                 <div className="flex gap-3">
